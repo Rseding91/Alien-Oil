@@ -1,0 +1,9 @@
+{
+	"name":"Alien Oil",
+	"author":"Rseding91",
+	"version":"1.0.6",
+	"title":"Alien Oil",
+	"homepage":"",
+	"description":"This mod adds a method of moving crude oil deposits using alien technology.",
+	"dependencies": ["base"]
+}
