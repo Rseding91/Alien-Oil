@@ -11,109 +11,110 @@ local random = math.random
 local setupChestName = "logistic-chest-storage"
 local setupPillarsName = "stone-wall"
 local setupPipesName = "pipe-to-ground"
+local entityPrototypes = game.entity_prototypes
 local entityMaxHealth = {
-	[setupChestName] = 150,
-	[setupPillarsName] = 350,
-	[setupPipesName] = 50
+	[setupChestName] = entityPrototypes[setupChestName].max_health,
+	[setupPillarsName] = entityPrototypes[setupPillarsName].max_health,
+	[setupPipesName] = entityPrototypes[setupPipesName].max_health
 }
+entityPrototypes = nil
 
-if glob.crashedShipCrashed == nil then
-	glob.crashedShipCrashed = false
+if global.crashedShipCrashed == nil then
+	global.crashedShipCrashed = false
 end
 
-game.forces.player.recipes["alien-compass"].enabled = game.forces.player.technologies["alien-technology"].researched
-
 function printToAllPlayers(message)
-	local players = game.players
-	for _,v in pairs(players) do
+	for _,v in pairs(game.players) do
 		v.print(message)
 	end
 end
 
-remote.addinterface("alien-oil", {
+remote.add_interface("alien-oil", {
 	spawnship = function()
-		if not spawnCrashedShip(floor((game.player.position.x / 32) - 1), floor((game.player.position.y / 32) - 1)) then
-			printToAllPlayers("Crashed ship already exists. Use the ship locator to find it.")
+		if not spawnCrashedShip(floor((game.player.position.x / 32) - 1), floor((game.player.position.y / 32) - 1), game.player.surface) then
+			game.player.print("Crashed ship already exists. Use the ship locator to find it.")
 		end
 	end,
 	resetship = function()
-		glob.crashedShip = nil
-		glob.crashedShipCrashed = false
+		global.crashedShip = nil
+		global.crashedShipCrashed = false
 		printToAllPlayers("Reset successful.")
 	end
 })
 
 function ticker()
-	if glob.crashedShip ~= nil or glob.collectors ~= nil or glob.builders ~= nil or glob.clouds ~= nil then
-		if glob.ticks == nil or glob.ticks == 0 then
-			glob.ticks = 9
+	if global.crashedShip ~= nil or global.collectors ~= nil or global.builders ~= nil then
+		if global.ticks == nil or global.ticks == 0 then
+			global.ticks = 9
 			tickSetups()
 		else
-			glob.ticks = glob.ticks - 1
+			global.ticks = global.ticks - 1
 		end
 	else
-		game.onevent(defines.events.ontick, nil)
+		game.on_event(defines.events.on_tick, nil)
 	end
 end
 
-game.onload(function()
+game.on_load(function()
 	if not loaded then
 		loaded = true
 		
-		if glob.crashedShip ~= nil or glob.collectors ~= nil or glob.builders ~= nil or glob.clouds ~= nil then
-			game.onevent(defines.events.ontick, ticker)
+		if global.crashedShip ~= nil or global.collectors ~= nil or global.builders ~= nil then
+			game.on_event(defines.events.on_tick, ticker)
 		end
 	end
 end)
 
-game.oninit(function()
+game.on_init(function()
 	loaded = true
 	
-	if glob.crashedShip ~= nil or glob.collectors ~= nil or glob.builders ~= nil or glob.clouds ~= nil then
-		game.onevent(defines.events.ontick, ticker)
+	if global.crashedShip ~= nil or global.collectors ~= nil or global.builders ~= nil then
+		game.on_event(defines.events.on_tick, ticker)
 	end
 end)
 
-game.onevent(defines.events.onchunkgenerated, function(event)
-	local x = floor(event.area.lefttop.x / 32)
-	local y = floor(event.area.lefttop.y / 32)
+game.on_event(defines.events.on_chunk_generated, function(event)
+	local x = floor(event.area.left_top.x / 32)
+	local y = floor(event.area.left_top.y / 32)
 	
-	if glob.crashedShipCrashed == false then
+	if global.crashedShipCrashed == false then
 		-- y < 200 because f-mod generates the "red planet" at y > 200 and might erase the ship
 		if x > 93 or x < -93 or y > 93 or y < -93 and y < 200 then
 			if random(100) <= 2 then
-				spawnCrashedShip(x, y)
+				spawnCrashedShip(x, y, event.surface)
 			end
 		end
 	end
 end)
 
-function spawnCrashedShip(x, y)
+function spawnCrashedShip(x, y, surface)
 	local shipPosition
 	local tileName
 	
-	if glob.crashedShip == nil then
+	if global.crashedShip == nil then
 		shipPosition = {x = floor((x * 32) + random(5, 25)), y = floor((y * 32) + random(5, 25))}
-		tileName = game.gettile(shipPosition.x, shipPosition.y).name
+		tileName = surface.get_tile(shipPosition.x, shipPosition.y).name
 		
 		if tileName ~= "water" and tileName ~= "deepwater" then
-			for _,v in pairs(game.findentities({{shipPosition.x - 8, shipPosition.y - 4}, {shipPosition.x + 8, shipPosition.y + 4}})) do
+			for _,v in pairs(surface.find_entities({{shipPosition.x - 8, shipPosition.y - 4}, {shipPosition.x + 8, shipPosition.y + 4}})) do
 				v.destroy()
 			end
 			
-			glob.crashedShip = {}
-			glob.crashedShip[1] = game.createentity({name = "big-ship-wreck-1", position = shipPosition})
-			glob.crashedShip[1].getinventory(1).insert({name = "alien-activator", count = 2})
-			glob.crashedShip[1].getinventory(1).insert({name = "crude-oil-collected", count = 2})
-			glob.crashedShip[2] = 3
+			global.crashedShip = {}
+			global.crashedShip[1] = surface.create_entity({name = "big-ship-wreck-1", position = shipPosition, force = game.forces.neutral})
+			global.crashedShip[1].get_inventory(1).insert({name = "alien-activator", count = 2})
+			global.crashedShip[1].get_inventory(1).insert({name = "crude-oil-collected", count = 2})
+			global.crashedShip[2] = 3
 			for _,v in pairs(game.players) do
-				v.print("You can feel the ground shake as an Alien ship crashes to your " .. getDirectionToCrashedShip(v) .. ".")
-				v.print("You should investigate and see if there's anything worth looting.")
+        if v.surface == surface then
+          v.print("You can feel the ground shake as an Alien ship crashes to your " .. getDirectionToCrashedShip(v) .. ".")
+          v.print("You should investigate and see if there's anything worth looting.")
+        end
 			end
-			glob.crashedShipCrashed = true
+			global.crashedShipCrashed = true
 			
-			if glob.builders == nil and glob.collectors == nil and glob.clouds == nil then
-				game.onevent(defines.events.ontick, ticker)
+			if global.builders == nil and global.collectors == nil then
+				game.on_event(defines.events.on_tick, ticker)
 			end
 			
 			return true
@@ -132,21 +133,21 @@ function getDirectionToCrashedShip(player)
 	-- down = south
 	-- right = east
 	-- left = west
-	if glob.crashedShip ~= nil then
-		if glob.crashedShip[1].valid then
-			if glob.crashedShip[1].position.y < playerY then
+	if global.crashedShip ~= nil then
+		if global.crashedShip[1].valid and global.crashedShip[1].surface == player.surface then
+			if global.crashedShip[1].position.y < playerY then
 				directionText = "north"
-			elseif glob.crashedShip[1].position.y > playerY then
+			elseif global.crashedShip[1].position.y > playerY then
 				directionText = "south"
 			end
 			
-			if glob.crashedShip[1].position.x < playerX then
+			if global.crashedShip[1].position.x < playerX then
 				if directionText ~= "" then
 					directionText = directionText .. "-"
 				end
 				
 				directionText = directionText .. "west"
-			elseif glob.crashedShip[1].position.x > playerX then
+			elseif global.crashedShip[1].position.x > playerX then
 				if directionText ~= "" then
 					directionText = directionText .. "-"
 				end
@@ -155,7 +156,7 @@ function getDirectionToCrashedShip(player)
 			end
 		end
 	else
-		if glob.crashedShipCrashed == false then
+		if global.crashedShipCrashed == false then
 			directionText = "deep (more than 3000 meters from the spawn zone) into the unexplored wilderness"
 		else
 			directionText = "nowhere! you've already found the ship"
@@ -165,13 +166,13 @@ function getDirectionToCrashedShip(player)
 	return directionText
 end
 
-game.onevent(defines.events.onbuiltentity, function(event)
-	if event.createdentity.name == "alien-activator" then
+game.on_event(defines.events.on_built_entity, function(event)
+	if event.created_entity.name == "alien-activator" then
 		local position
-		local player = game.players[event.playerindex]
+		local player = game.get_player(event.player_index)
 		
 		player.insert({name="alien-activator", count = 1})
-		event.createdentity.destroy()
+		event.created_entity.destroy()
 		
 		if game.forces.player.technologies["alien-technology"].researched then
 			if player.selected ~= nil then
@@ -188,27 +189,29 @@ game.onevent(defines.events.onbuiltentity, function(event)
 		else
 			player.print("It doesn't seem to do anything. Perhaps research into alien technologies would help.")
 		end
-	elseif event.createdentity.name == "alien-compass" then
-		local player = game.players[event.playerindex]
-		event.createdentity.destroy()
+	elseif event.created_entity.name == "alien-compass" then
+		local player = game.get_player(event.player_index)
+		event.created_entity.destroy()
 		player.insert({name="alien-compass", count = 1})
 		player.print("The compass seems to be pointing ... " .. getDirectionToCrashedShip(player) .. "!")
 	end
 end)
 
 
-game.onevent(defines.events.onentitydied, function(event)
-	if glob.crashedShip ~= nil then
-		if event.entity.equals(glob.crashedShip[1]) then
-			local count = glob.crashedShip[1].getinventory(1).getitemcount("alien-activator")
+game.on_event(defines.events.on_entity_died, function(event)
+	if global.crashedShip ~= nil then
+    local entity = event.entity
+		if entity == global.crashedShip[1] then
+			local count = global.crashedShip[1].get_inventory(1).get_item_count("alien-activator")
 			
 			if count ~= 0 then
+        local surface = entity.surface
 				for n = 1, count do
-					game.createentity({name = "item-on-ground", position = event.entity.position, stack = {name = "alien-activator", count = 1}})
+					surface.create_entity({name = "item-on-ground", position = entity.position, stack = {name = "alien-activator", count = 1}})
 				end
 			end
 			
-			glob.crashedShip = nil
+			global.crashedShip = nil
 		end
 	end
 end)
@@ -218,40 +221,43 @@ function tickSetups()
 	local emitPoison = 0
 	
 	-- Crashed ship tick
-	if glob.crashedShip ~= nil then
-		if glob.crashedShip[1].valid then
+	if global.crashedShip ~= nil then
+		if global.crashedShip[1].valid then
 			for _,player in pairs(game.players) do
-				if abs(player.position.x - glob.crashedShip[1].position.x) < 150 or abs(player.position.y - glob.crashedShip[1].position.y) < 150 then
-					for n = 1, 3 do
-						if random(6) <= 2 then
-							game.createentity({name = "alien-standard-smoke", position = {x = glob.crashedShip[1].position.x - 3 + random(5) + random(), y = glob.crashedShip[1].position.y - 3 + random(5) + random()}})
-						end
-					end
-					
-					if glob.crashedShip[2] == 0 then
-						glob.crashedShip[2] = 3
-						
-						emitAlienPoison(glob.crashedShip[1].position, 20)
-					else
-						glob.crashedShip[2] = glob.crashedShip[2] - 1
-					end
-					
-					-- The activators where removed from the ship, stop all extra activity.
-					if glob.crashedShip[1].getinventory(1).getitemcount("alien-activator") == 0 then
-						glob.crashedShip = nil
-					end
-					
-					break
-				end
+        local surface = global.crashedShip[1].surface
+        if player.surface == surface then
+          if abs(player.position.x - global.crashedShip[1].position.x) < 150 or abs(player.position.y - global.crashedShip[1].position.y) < 150 then
+            for n = 1, 3 do
+              if random(6) <= 2 then
+                surface.create_entity({name = "alien-standard-smoke", position = {x = global.crashedShip[1].position.x - 3 + random(5) + random(), y = global.crashedShip[1].position.y - 3 + random(5) + random()}})
+              end
+            end
+            
+            if global.crashedShip[2] == 0 then
+              global.crashedShip[2] = 3
+              
+              emitAlienPoison(global.crashedShip[1].position, 20, 1, surface)
+            else
+              global.crashedShip[2] = global.crashedShip[2] - 1
+            end
+            
+            -- The activators where removed from the ship, stop all extra activity.
+            if global.crashedShip[1].get_inventory(1).get_item_count("alien-activator") == 0 then
+              global.crashedShip = nil
+            end
+            
+            break
+          end
+        end
 			end
 		else
-			glob.crashedShip = nil
+			global.crashedShip = nil
 		end
 	end
 	
 	-- Collectors tick
-	if glob.collectors ~= nil then
-		for _,setup in pairs(glob.collectors) do
+	if global.collectors ~= nil then
+		for _,setup in pairs(global.collectors) do
 			detonate = tickSetupEntities(setup, 1)
 			if setup["artifacts"] ~= requiredArtifacts * 2 then
 				emitPoison = 2
@@ -266,10 +272,10 @@ function tickSetups()
 					detonate = "structural failure"
 				end
 				detonateSetup(setup, detonate)
-				table.remove(glob.collectors, _)
+				table.remove(global.collectors, _)
 				
-				if #glob.collectors == 0 then
-					glob.collectors = nil
+				if #global.collectors == 0 then
+					global.collectors = nil
 				end
 			else
 				setup["ticks"] = setup["ticks"] + 1
@@ -277,14 +283,14 @@ function tickSetups()
 				if emitPoison ~= 0 then
 					for n = 1, emitPoison do
 						if random() >= 0.7 then
-							emitAlienPoison(setup["chest"].position, 3, 2)
+							emitAlienPoison(setup["chest"].position, 3, 2, setup["surface"])
 						end
 					end
 					
 					if setup["artifacts"] == requiredArtifacts then
 						if setup["ticks"] % 25 == 0 then
 							if random() >= 0.3 then
-								splashAcid(setup["position"])
+								splashAcid(setup["position"], setup["surface"])
 							end
 						end
 					end
@@ -292,10 +298,10 @@ function tickSetups()
 				
 				if setup["ticks"] == 360 then
 					finishCollector(setup)
-					table.remove(glob.collectors, _)
+					table.remove(global.collectors, _)
 					
-					if #glob.collectors == 0 then
-						glob.collectors = nil
+					if #global.collectors == 0 then
+						global.collectors = nil
 					end
 				end
 			end
@@ -303,8 +309,8 @@ function tickSetups()
 	end
 	
 	-- Builders tick
-	if glob.builders ~= nil then
-		for _,setup in pairs(glob.builders) do
+	if global.builders ~= nil then
+		for _,setup in pairs(global.builders) do
 			detonate = tickSetupEntities(setup, 2)
 			if setup["artifacts"] ~= requiredArtifacts * 2 then
 				emitPoison = 2
@@ -319,10 +325,10 @@ function tickSetups()
 					detonate = "structural failure"
 				end
 				detonateSetup(setup, detonate)
-				table.remove(glob.builders, _)
+				table.remove(global.builders, _)
 				
-				if #glob.builders == 0 then
-					glob.builders = nil
+				if #global.builders == 0 then
+					global.builders = nil
 				end
 			else
 				setup["ticks"] = setup["ticks"] + 1
@@ -330,14 +336,14 @@ function tickSetups()
 				if emitPoison ~= 0 then
 					for n = 1, emitPoison do
 						if random() >= 0.3 then
-							emitAlienPoison(setup["chest"].position, 3, 2)
+							emitAlienPoison(setup["chest"].position, 3, 2, setup["surface"])
 						end
 					end
 					
 					if setup["artifacts"] == requiredArtifacts then
 						if setup["ticks"] % 25 == 0 then
 							if random() >= 0.1 then
-								splashAcid(setup["position"])
+								splashAcid(setup["position"], setup["surface"])
 							end
 						end
 					end
@@ -345,33 +351,18 @@ function tickSetups()
 				
 				if setup["ticks"] == 360 then
 					finishBuilder(setup)
-					table.remove(glob.builders, _)
+					table.remove(global.builders, _)
 					
-					if #glob.builders == 0 then
-						glob.builders = nil
+					if #global.builders == 0 then
+						global.builders = nil
 					end
-				end
-			end
-		end
-	end
-	
-	-- Clouds tick
-	if glob.clouds ~= nil then
-		for _,cloud in pairs(glob.clouds) do
-			if cloud[1].valid then
-				cloud[1].teleport(cloud[2])
-			else
-				table.remove(glob.clouds, _)
-				
-				if #glob.clouds == 0 then
-					glob.clouds = nil
 				end
 			end
 		end
 	end
 end
 
-function emitAlienPoison(position, radius, size)
+function emitAlienPoison(position, radius, size, surface)
 	local distX
 	local distY
 	local randomX
@@ -395,13 +386,13 @@ function emitAlienPoison(position, radius, size)
 		distY = abs(position.y - randomY)
 		
 		if math.sqrt((distX * distX) + (distY * distY)) <= radius then
-			game.createentity({name = cloud, position = {x = randomX, y = randomY}})
+			surface.create_entity({name = cloud, position = {x = randomX, y = randomY}})
 			retry = false
 		end
 	end
 end
 
-function splashAcid(position)
+function splashAcid(position, surface)
 	local distX
 	local distY
 	local randomX
@@ -417,8 +408,8 @@ function splashAcid(position)
 		distance = math.sqrt((distX * distX) + (distY * distY))
 		
 		if distance >= 4 and distance <= 6 then
-			game.createentity({name = "acid-splash-purple", position = {x = randomX, y = randomY}})
-			game.createentity({name = "alien-poison-cloud-corrosive", position = {x = randomX, y = randomY}})
+			surface.create_entity({name = "acid-splash-purple", position = {x = randomX, y = randomY}})
+			surface.create_entity({name = "alien-poison-cloud-corrosive", position = {x = randomX, y = randomY}})
 			retry = false
 		end
 	end
@@ -426,6 +417,7 @@ end
 
 function tickSetupEntities(setup, setupType)
 	local detonate = false
+  local surface = setup["surface"]
 	
 	if setup["chest"].valid then
 		if setup["chest"].health ~= entityMaxHealth[setupChestName] then
@@ -442,7 +434,7 @@ function tickSetupEntities(setup, setupType)
 			end
 			
 			if random() >= 0.2 then
-				game.createentity({name = "alien-standard-smoke", position = setup["walls"][n].position})
+				surface.create_entity({name = "alien-standard-smoke", position = setup["walls"][n].position})
 			end
 		else
 			detonate = "structural failure"
@@ -459,9 +451,9 @@ function tickSetupEntities(setup, setupType)
 		end
 	end
 	
-	if setup["chest"].getinventory(1).getitemcount("alien-artifact") >= 1 then
+	if setup["chest"].get_inventory(1).get_item_count("alien-artifact") >= 1 then
 		if setup["ticks"] % 2 == 0 or setup["artifacts"] == requiredArtifacts * 2 then
-			setup["chest"].getinventory(1).remove({name = "alien-artifact", count = 1})
+			setup["chest"].get_inventory(1).remove({name = "alien-artifact", count = 1})
 		end
 	else
 		detonate = "insufficient Alien artifacts"
@@ -470,17 +462,17 @@ function tickSetupEntities(setup, setupType)
 	if setupType == 1 then
 		if pollute then
 			if setup["artifacts"] ~= requiredArtifacts * 2 then
-				game.pollute(setup["position"], 27.77)
+				surface.pollute(setup["position"], 27.77)
 			end
 		end
 	else
-		if setup["chest"].getinventory(1).getitemcount("crude-oil-collected") < 1 then
+		if setup["chest"].get_inventory(1).get_item_count("crude-oil-collected") < 1 then
 			detonate = "missing crude oil spout"
 		end
 		
 		if pollute then
 			if setup["artifacts"] ~= requiredArtifacts * 2 then
-				game.pollute(setup["position"], 55.55)
+				surface.pollute(setup["position"], 55.55)
 			end
 		end
 	end
@@ -494,6 +486,7 @@ function detonateSetup(setup, reason)
 	local target
 	local distX
 	local distY
+  local surface = setup["surface"]
 	
 	for xx = x - 3,x + 3,1.5 do
 		for yy = y - 3,y + 3,1.5 do
@@ -501,7 +494,7 @@ function detonateSetup(setup, reason)
 			distY = abs(y - yy)
 			
 			if math.sqrt((distX * distX) + (distY * distY)) <= 3 then
-				game.createentity({name = "huge-explosion", position = {x = xx, y = yy}})
+				surface.create_entity({name = "medium-explosion", position = {x = xx, y = yy}})
 			end
 		end
 	end
@@ -509,26 +502,26 @@ function detonateSetup(setup, reason)
 	if setup["chest"].valid then
 		target = setup["chest"]
 	else
-		target = game.createentity({name = "alien-activator", position = setup["position"]})
+		target = surface.create_entity({name = "alien-activator", position = setup["position"]})
 	end
 	
-	game.createentity({name = "alien-setup-detonation", position = setup["position"], target = target, speed = 1})
-	lockCloudToPosition(game.createentity({name = "alien-destroyed-crude-oil-poison-cloud", position = {x = setup["position"].x, y = setup["position"].y + 1}}))
+	surface.create_entity({name = "alien-setup-detonation", position = setup["position"], target = target, speed = 1})
+	surface.create_entity({name = "alien-destroyed-crude-oil-poison-cloud", position = {x = setup["position"].x, y = setup["position"].y + 1}})
 	
 	if destroyOilOnDetonation then
-		for _,oil in pairs(game.findentitiesfiltered({area = {{x = x - 3, y = y - 3}, {x = x + 3, y = y + 3}}, name = "crude-oil"})) do
+		for _,oil in pairs(surface.find_entities_filtered({area = {{x = x - 3, y = y - 3}, {x = x + 3, y = y + 3}}, name = "crude-oil"})) do
 			distX = abs(x - oil.position.x)
 			distY = abs(y - oil.position.y)
 			
 			if math.sqrt((distX * distX) + (distY * distY)) <= 3 then
-				lockCloudToPosition(game.createentity({name = "alien-destroyed-crude-oil-poison-cloud", position = {x = oil.position.x, y = oil.position.y + 1}}))
+				surface.create_entity({name = "alien-destroyed-crude-oil-poison-cloud", position = {x = oil.position.x, y = oil.position.y + 1}})
 				oil.destroy()
 			end
 		end
 	end
 	
 	if pollute then
-		game.pollute(setup["position"], 40000)
+		surface.pollute(setup["position"], 40000)
 	end
 	
 	printToAllPlayers("Critical setup failure; " .. reason)
@@ -536,21 +529,22 @@ end
 
 function finishCollector(setup)
 	local crudeOil
-	local artifactCount = setup["chest"].getinventory(1).getitemcount("alien-artifact")
+  local surface = setup["surface"]
+	local artifactCount = setup["chest"].get_inventory(1).get_item_count("alien-artifact")
 	
 	if setup["artifacts"] == requiredArtifacts and artifactCount ~= 70 then
 		detonateSetup(setup, "insufficient Alien artifacts")
 	elseif setup["artifacts"] == requiredArtifacts * 2 and artifactCount ~= 140 then
 		detonateSetup(setup, "insufficient Alien artifacts")
 	else
-		setup["chest"].getinventory(1).remove({name = "alien-artifact", count = artifactCount})
+		setup["chest"].get_inventory(1).remove({name = "alien-artifact", count = artifactCount})
 		
-		if setup["chest"].getinventory(1).caninsert({name = "crude-oil-collected", count = 1}) then
-			crudeOil = findEntity(setup["position"], 0, 0, "crude-oil")
+		if setup["chest"].get_inventory(1).can_insert({name = "crude-oil-collected", count = 1}) then
+			crudeOil = findEntity(setup["position"], 0, 0, "crude-oil", surface)
 			
 			if #crudeOil == 1 then
-				setup["chest"].getinventory(1).insert({name = "crude-oil-collected", count = 1})
-				lockCloudToPosition(game.createentity({name = "alien-destroyed-crude-oil-poison-cloud", position = {x = setup["position"].x, y = setup["position"].y + 1}}))
+				setup["chest"].get_inventory(1).insert({name = "crude-oil-collected", count = 1})
+				surface.create_entity({name = "alien-destroyed-crude-oil-poison-cloud", position = {x = setup["position"].x, y = setup["position"].y + 1}})
 				crudeOil[1].destroy()
 			else
 				detonateSetup(setup, "crude oil oddities")
@@ -562,20 +556,21 @@ function finishCollector(setup)
 end
 
 function finishBuilder(setup)
-	local artifactCount = setup["chest"].getinventory(1).getitemcount("alien-artifact")
+	local artifactCount = setup["chest"].get_inventory(1).get_item_count("alien-artifact")
+  local surface = setup["surface"]
 	
 	if setup["artifacts"] == requiredArtifacts and artifactCount ~= 70 then
 		detonateSetup(setup, "insufficient Alien artifacts")
 	elseif setup["artifacts"] == requiredArtifacts * 2 and artifactCount ~= 140 then
 		detonateSetup(setup, "insufficient Alien artifacts")
 	else
-		setup["chest"].getinventory(1).remove({name = "alien-artifact", count = artifactCount})
+		setup["chest"].get_inventory(1).remove({name = "alien-artifact", count = artifactCount})
 		
-		if setup["chest"].getinventory(1).getitemcount("crude-oil-collected") ~= 1 then
+		if setup["chest"].get_inventory(1).get_item_count("crude-oil-collected") ~= 1 then
 			detonateSetup(setup, "wrong number of crude oil spouts")
 		else
-			setup["chest"].getinventory(1).remove({name = "crude-oil-collected", count = 1})
-			game.createentity({name = "crude-oil", position = setup["position"]}).amount = 750 -- 750 = 10% @ 0.1/second
+			setup["chest"].get_inventory(1).remove({name = "crude-oil-collected", count = 1})
+			surface.create_entity({name = "crude-oil", position = setup["position"]}).amount = 750 -- 750 = 10% @ 0.1/second
 		end
 	end
 end
@@ -600,21 +595,22 @@ function checkSetup(player)
 	local position = player.selected.position
 	
 	
-	chest = findEntity(position, 0, 0, setupChestName)
+	chest = findEntity(position, 0, 0, setupChestName, player.surface)
 	if #chest == 1 then
 		newSetup["chest"] = chest[1]
+    newSetup["surface"] = chest[1].surface
 		
 		-- Check if the setup is already running
-		if glob.collectors ~= nil then
-			for _,setup in pairs(glob.collectors) do
-				if setup["chest"].valid and setup["chest"].equals(newSetup["chest"]) then
+		if global.collectors ~= nil then
+			for _,setup in pairs(global.collectors) do
+				if setup["chest"].valid and setup["chest"] == newSetup["chest"] then
 					return
 				end
 			end
 		end
-		if glob.builders ~= nil then
-			for _,setup in pairs(glob.builders) do
-				if setup["chest"].valid and setup["chest"].equals(newSetup["chest"]) then
+		if global.builders ~= nil then
+			for _,setup in pairs(global.builders) do
+				if setup["chest"].valid and setup["chest"] == newSetup["chest"] then
 					return
 				end
 			end
@@ -628,7 +624,7 @@ function checkSetup(player)
 		
 		walls = {}
 		for n = 1, 4 do
-			wall = findEntity(position, wallPositions[n][1], wallPositions[n][2], setupPillarsName)
+			wall = findEntity(position, wallPositions[n][1], wallPositions[n][2], setupPillarsName, newSetup["surface"])
 			if #wall == 1 then
 				walls[n] = wall[1]
 				
@@ -648,7 +644,7 @@ function checkSetup(player)
 			
 			pipes = {}
 			for n = 1, 4 do
-				pipe = findEntity(position, pipePositions[n][1], pipePositions[n][2], setupPipesName)
+				pipe = findEntity(position, pipePositions[n][1], pipePositions[n][2], setupPipesName, newSetup["surface"])
 				if #pipe == 1 then
 					pipes[n] = pipe[1]
 					
@@ -678,11 +674,11 @@ function checkSetup(player)
 			
 			if pipeCount == 4 then
 				newSetup["pipes"] = pipes
-				artifactCount = newSetup["chest"].getinventory(1).getitemcount("alien-artifact")
+				artifactCount = newSetup["chest"].get_inventory(1).get_item_count("alien-artifact")
 				
 				-- Require exactly the right amount of artifacts
 				if artifactCount == requiredArtifacts or artifactCount == requiredArtifacts * 2 then
-					crudeOil = findEntity(position, 0, 0, "crude-oil")
+					crudeOil = findEntity(position, 0, 0, "crude-oil", newSetup["surface"])
 					if #crudeOil == 1 then
 						if floor(crudeOil[1].position.x) + 0.5 == position.x and floor(crudeOil[1].position.y) + 0.5 == position.y then
 							newSetup["position"] = position
@@ -699,7 +695,7 @@ function checkSetup(player)
 						end
 					else
 						if #crudeOil == 0 then
-							crudeOilCollected = newSetup["chest"].getinventory(1).getitemcount("crude-oil-collected")
+							crudeOilCollected = newSetup["chest"].get_inventory(1).get_item_count("crude-oil-collected")
 							
 							if crudeOilCollected > 0 then
 								if crudeOilCollected == 1 then
@@ -756,46 +752,34 @@ function checkSetup(player)
 	end
 end
 
-function findEntity(position, offsetX, offsetY, itemName)
-	return game.findentitiesfiltered({area = {{position.x - (0.1) + offsetX, position.y - (0.1) + offsetY}, {position.x + (0.1) + offsetX, position.y + (0.1) + offsetY}}, name = itemName})
+function findEntity(position, offsetX, offsetY, itemName, surface)
+	return surface.find_entities_filtered({area = {{position.x - (0.1) + offsetX, position.y - (0.1) + offsetY}, {position.x + (0.1) + offsetX, position.y + (0.1) + offsetY}}, name = itemName})
 end
 
 function addCollector(collector)
-	if glob.collectors == nil then
-		glob.collectors = {}
+	if global.collectors == nil then
+		global.collectors = {}
 		
-		if glob.builders == nil and glob.crashedShip == nil and glob.clouds == nil then
-			game.onevent(defines.events.ontick, ticker)
+		if global.builders == nil and global.crashedShip == nil then
+			game.on_event(defines.events.on_tick, ticker)
 		end
 	end
 	
 	collector["damaged"] = 0
 	collector["ticks"] = 0
-	table.insert(glob.collectors, collector)
+	table.insert(global.collectors, collector)
 end
 
 function addBuilder(builder)
-	if glob.builders == nil then
-		glob.builders = {}
+	if global.builders == nil then
+		global.builders = {}
 		
-		if glob.collectors == nil and glob.crashedShip == nil and glob.clouds == nil then
-			game.onevent(defines.events.ontick, ticker)
+		if global.collectors == nil and global.crashedShip == nil then
+			game.on_event(defines.events.on_tick, ticker)
 		end
 	end
 	
 	builder["damaged"] = 0
 	builder["ticks"] = 0
-	table.insert(glob.builders, builder)
-end
-
-function lockCloudToPosition(cloud)
-	if glob.clouds == nil then
-		glob.clouds = {}
-		
-		if glob.builders == nil and glob.collectors == nil and glob.crashedShip == nil then
-			game.onevent(defines.events.ontick, ticker)
-		end
-	end
-	
-	table.insert(glob.clouds, {[1] = cloud, [2] = cloud.position})
+	table.insert(global.builders, builder)
 end

@@ -162,6 +162,7 @@ data:extend(
 			},
 			slow_down_factor = 0,
 			wind_speed_factor = 0,
+      affected_by_wind = false,
 			cyclic = true,
 			duration = 60 * 60 * 5,
 			fade_away_duration =  60 * 60 * 3,
