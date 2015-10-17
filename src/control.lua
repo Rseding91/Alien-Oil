@@ -3,25 +3,28 @@ require "defines"
 local destroyOilOnDetonation = true
 local pollute = true
 local requiredArtifacts = 250
-
-local loaded = false
 local floor = math.floor
 local abs = math.abs
 local random = math.random
 local setupChestName = "logistic-chest-storage"
 local setupPillarsName = "stone-wall"
 local setupPipesName = "pipe-to-ground"
-local entityPrototypes = game.entity_prototypes
-local entityMaxHealth = {
-	[setupChestName] = entityPrototypes[setupChestName].max_health,
-	[setupPillarsName] = entityPrototypes[setupPillarsName].max_health,
-	[setupPipesName] = entityPrototypes[setupPipesName].max_health
-}
-entityPrototypes = nil
 
-if global.crashedShipCrashed == nil then
-	global.crashedShipCrashed = false
-end
+
+script.on_configuration_changed(function(data)
+  if global.entityMaxHealth == nil then
+    local entityPrototypes = game.entity_prototypes
+    global.entityMaxHealth = {
+      [setupChestName] = entityPrototypes[setupChestName].max_health,
+      [setupPillarsName] = entityPrototypes[setupPillarsName].max_health,
+      [setupPipesName] = entityPrototypes[setupPipesName].max_health
+    }
+  end
+  
+  if global.crashedShipCrashed == nil then
+    global.crashedShipCrashed = false
+  end
+end)
 
 function printToAllPlayers(message)
 	for _,v in pairs(game.players) do
@@ -51,29 +54,32 @@ function ticker()
 			global.ticks = global.ticks - 1
 		end
 	else
-		game.on_event(defines.events.on_tick, nil)
+		script.on_event(defines.events.on_tick, nil)
 	end
 end
 
-game.on_load(function()
-	if not loaded then
-		loaded = true
-		
-		if global.crashedShip ~= nil or global.collectors ~= nil or global.builders ~= nil then
-			game.on_event(defines.events.on_tick, ticker)
-		end
-	end
+script.on_load(function()
+  if global.crashedShip ~= nil or global.collectors ~= nil or global.builders ~= nil then
+    script.on_event(defines.events.on_tick, ticker)
+  end
 end)
 
-game.on_init(function()
-	loaded = true
-	
-	if global.crashedShip ~= nil or global.collectors ~= nil or global.builders ~= nil then
-		game.on_event(defines.events.on_tick, ticker)
-	end
+script.on_init(function()
+  if global.entityMaxHealth == nil then
+    local entityPrototypes = game.entity_prototypes
+    global.entityMaxHealth = {
+      [setupChestName] = entityPrototypes[setupChestName].max_health,
+      [setupPillarsName] = entityPrototypes[setupPillarsName].max_health,
+      [setupPipesName] = entityPrototypes[setupPipesName].max_health
+    }
+  end
+  
+  if global.crashedShipCrashed == nil then
+    global.crashedShipCrashed = false
+  end
 end)
 
-game.on_event(defines.events.on_chunk_generated, function(event)
+script.on_event(defines.events.on_chunk_generated, function(event)
 	local x = floor(event.area.left_top.x / 32)
 	local y = floor(event.area.left_top.y / 32)
 	
@@ -114,7 +120,7 @@ function spawnCrashedShip(x, y, surface)
 			global.crashedShipCrashed = true
 			
 			if global.builders == nil and global.collectors == nil then
-				game.on_event(defines.events.on_tick, ticker)
+				script.on_event(defines.events.on_tick, ticker)
 			end
 			
 			return true
@@ -166,7 +172,7 @@ function getDirectionToCrashedShip(player)
 	return directionText
 end
 
-game.on_event(defines.events.on_built_entity, function(event)
+script.on_event(defines.events.on_built_entity, function(event)
 	if event.created_entity.name == "alien-activator" then
 		local position
 		local player = game.get_player(event.player_index)
@@ -198,7 +204,7 @@ game.on_event(defines.events.on_built_entity, function(event)
 end)
 
 
-game.on_event(defines.events.on_entity_died, function(event)
+script.on_event(defines.events.on_entity_died, function(event)
 	if global.crashedShip ~= nil then
     local entity = event.entity
 		if entity == global.crashedShip[1] then
@@ -420,7 +426,7 @@ function tickSetupEntities(setup, setupType)
   local surface = setup["surface"]
 	
 	if setup["chest"].valid then
-		if setup["chest"].health ~= entityMaxHealth[setupChestName] then
+		if setup["chest"].health ~= global.entityMaxHealth[setupChestName] then
 			setup["damaged"] = setup["damaged"] + 1
 		end
 	else
@@ -429,7 +435,7 @@ function tickSetupEntities(setup, setupType)
 	
 	for n = 1, 4 do
 		if setup["walls"][n].valid then
-			if setup["walls"][n].health ~= entityMaxHealth[setupPillarsName] then
+			if setup["walls"][n].health ~= global.entityMaxHealth[setupPillarsName] then
 				setup["damaged"] = setup["damaged"] + 1
 			end
 			
@@ -442,7 +448,7 @@ function tickSetupEntities(setup, setupType)
 		end
 		
 		if setup["pipes"][n].valid then
-			if setup["pipes"][n].health ~= entityMaxHealth[setupPipesName] then
+			if setup["pipes"][n].health ~= global.entityMaxHealth[setupPipesName] then
 				setup["damaged"] = setup["damaged"] + 1
 			end
 		else
@@ -617,7 +623,7 @@ function checkSetup(player)
 		end
 		
 		-- make sure the chest isn't damaged
-		if newSetup["chest"].health ~= entityMaxHealth[setupChestName] then
+		if newSetup["chest"].health ~= global.entityMaxHealth[setupChestName] then
 			player.print("Activation failure; chest is damaged.")
 			return
 		end
@@ -629,7 +635,7 @@ function checkSetup(player)
 				walls[n] = wall[1]
 				
 				-- make sure the wall isn't damaged
-				if walls[n].health ~= entityMaxHealth[setupPillarsName] then
+				if walls[n].health ~= global.entityMaxHealth[setupPillarsName] then
 					player.print("Activation failure; wall pillar(s) are damaged.")
 					return
 				end
@@ -654,15 +660,8 @@ function checkSetup(player)
 						return
 					end
 					
-					-- make sure the pipe doesn't have liquid in it (other than crude oil)
-					--liquid = pipes[n].getliquid()
-					--if liquid ~= nil then
-					--	player.print("Activation failure; pipe(s) contain liquids.")
-					--	return
-					--end
-					
 					-- make sure the pipe isn't damaged
-					if pipes[n].health ~= entityMaxHealth[setupPipesName] then
+					if pipes[n].health ~= global.entityMaxHealth[setupPipesName] then
 						player.print("Activation failure; pipe(s) are damaged.")
 						return
 					end
@@ -761,7 +760,7 @@ function addCollector(collector)
 		global.collectors = {}
 		
 		if global.builders == nil and global.crashedShip == nil then
-			game.on_event(defines.events.on_tick, ticker)
+			script.on_event(defines.events.on_tick, ticker)
 		end
 	end
 	
@@ -775,7 +774,7 @@ function addBuilder(builder)
 		global.builders = {}
 		
 		if global.collectors == nil and global.crashedShip == nil then
-			game.on_event(defines.events.on_tick, ticker)
+			script.on_event(defines.events.on_tick, ticker)
 		end
 	end
 	
