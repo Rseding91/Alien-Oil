@@ -1,5 +1,3 @@
-require "defines"
-
 local destroyOilOnDetonation = true
 local pollute = true
 local requiredArtifacts = 250
@@ -175,7 +173,7 @@ end
 script.on_event(defines.events.on_built_entity, function(event)
 	if event.created_entity.name == "alien-activator" then
 		local position
-		local player = game.get_player(event.player_index)
+		local player = game.players[event.player_index]
 		
 		player.insert({name="alien-activator", count = 1})
 		event.created_entity.destroy()
@@ -196,7 +194,7 @@ script.on_event(defines.events.on_built_entity, function(event)
 			player.print("It doesn't seem to do anything. Perhaps research into alien technologies would help.")
 		end
 	elseif event.created_entity.name == "alien-compass" then
-		local player = game.get_player(event.player_index)
+		local player = game.players[event.player_index]
 		event.created_entity.destroy()
 		player.insert({name="alien-compass", count = 1})
 		player.print("The compass seems to be pointing ... " .. getDirectionToCrashedShip(player) .. "!")
